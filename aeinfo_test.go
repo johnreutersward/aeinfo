@@ -4,6 +4,5 @@ import (
 	"testing"
 )
 
-func TestInfo(t *testing.T) {
-
+func TestGather(t *testing.T) {
 }

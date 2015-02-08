@@ -1,23 +1,4 @@
-/*
-Package aeinfo registers an endpoint which returns information and statistics
-for appengine applications.
-
-	package app
-
-	import (
-		"net/http"
-
-		_ "github.com/rojters/aeinfo"
-	)
-
-	func init() {
-		http.HandleFunc("/hello", hello)
-	}
-
-	func hello(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello"))
-	}
-*/
+// Package aeinfo registers an HTTP handler which provides information and statistics for appengine applications.
 package aeinfo
 
 import (
@@ -43,20 +24,18 @@ func init() {
 
 func aeinfoHandler(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	u := user.Current(c)
-
-	if !appengine.IsDevAppServer() {
-		if u == nil {
-			loginURL, err := user.LoginURL(c, r.URL.String())
-			if err != nil {
-				serveError(w, err)
-			}
+	if appengine.IsDevAppServer() {
+		// noop
+	} else if u := user.Current(c); u == nil {
+		if loginURL, err := user.LoginURL(c, r.URL.String()); err == nil {
 			http.Redirect(w, r, loginURL, http.StatusTemporaryRedirect)
+		} else {
+			serveError(w, err)
 		}
-
-		if !u.Admin {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-		}
+		return
+	} else if !u.Admin {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
 	}
 
 	i, err := Gather(c, r)
@@ -73,11 +52,22 @@ func serveError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-// Gathers appengine information and statistic from different soruces.
 func Gather(c appengine.Context, r *http.Request) (*Info, error) {
+	var ms Memcache
 	memstats, err := memcache.Stats(c)
-	if err != nil {
+	if err != nil && err != memcache.ErrNoStats {
 		return nil, err
+	}
+
+	if err == nil {
+		ms = Memcache{
+			Hits:     memstats.Hits,
+			Misses:   memstats.Misses,
+			ByteHits: memstats.ByteHits,
+			Items:    memstats.Items,
+			Bytes:    memstats.Bytes,
+			Oldest:   memstats.Oldest,
+		}
 	}
 
 	taskstats, err := taskqueue.QueueStats(c, []string{"default"}, 0)
@@ -129,15 +119,8 @@ func Gather(c appengine.Context, r *http.Request) (*Info, error) {
 			Average1M:  aestats.RAM.Average1M,
 			Average10M: aestats.RAM.Average10M,
 		},
-		Modules: modules,
-		Memcache: Memcache{
-			Hits:     memstats.Hits,
-			Misses:   memstats.Misses,
-			ByteHits: memstats.ByteHits,
-			Items:    memstats.Items,
-			Bytes:    memstats.Bytes,
-			Oldest:   memstats.Oldest,
-		},
+		Modules:  modules,
+		Memcache: ms,
 		Taskqueue: Taskqueue{
 			Name:            "default",
 			Tasks:           taskstats[0].Tasks,
