@@ -2,6 +2,8 @@
 
 aeinfo is a Go package that registers an HTTP handler which provides information and statistics for appengine applications.
 
+[![GoDoc](https://godoc.org/github.com/rojters/aeinfo?status.svg)](https://godoc.org/github.com/rojters/aeinfo)
+
 ## Usage
 
 Use goapp get to install the package
@@ -32,7 +34,7 @@ func hello(w http.ResponseWriter, r *http.Request) {
 
 As admin, go to ``/_ah/aeinfo``
 
-```json
+```
 {
 	{
 		appID: "myapp",
